@@ -21,6 +21,45 @@ class MultiAgentSearchAgent(ABC):
 class MinimaxAgent(MultiAgentSearchAgent):
     """Agente Minimax para el defensor MAX frente al intruso MIN."""
 
+    #Separamos la función recursiva con la que la llama para que el código se vea más limpio y ordenado.
+    #Encuentra la función get_action más abajo.
+
+    def _minimax_value(self, state: GameState, depth: int, agent_index: int) -> float:
+        """
+        Calcula el valor Minimax recursivamente según las especificaciones del taller.
+        """
+        self.nodes_evaluated += 1
+
+        # Caso base: profundidad agotada o estado final (victoria/derrota)
+        if depth == 0 or state.is_win() or state.is_lose():
+            result_value = evaluation_function(state)
+        else:
+            legal_actions = state.get_legal_actions(agent_index)
+            if not legal_actions:
+                result_value = evaluation_function(state)
+            else:
+                next_agent = (agent_index + 1) % state.get_num_agents()
+                next_depth = depth - 1
+
+                if agent_index == 0:  # MAX (Defensor)
+                    max_val = float('-inf')
+                    for action in legal_actions:
+                        successor = state.generate_successor(agent_index, action)
+                        val = self._minimax_value(successor, next_depth, next_agent)
+                        if val > max_val:
+                            max_val = val
+                    result_value = max_val
+                else:  # MIN (Intruso)
+                    min_val = float('inf')
+                    for action in legal_actions:
+                        successor = state.generate_successor(agent_index, action)
+                        val = self._minimax_value(successor, next_depth, next_agent)
+                        if val < min_val:
+                            min_val = val
+                    result_value = min_val
+
+        return result_value
+
     def get_action(self, state: GameState) -> str | None:
         """
         Retorna la acción del defensor con mayor valor Minimax.
@@ -40,9 +79,26 @@ class MinimaxAgent(MultiAgentSearchAgent):
         - Reinicie las métricas y cuente una vez cada estado procesado, incluida
           la raíz. Retorne la acción de MAX y conserve la primera en los empates.
         """
-        # TODO: Add your code here
-        raise NotImplementedError("Punto 4: implemente MinimaxAgent.get_action")
+        self.nodes_evaluated = 0
 
+        # Contar la raíz como estado procesado
+        self.nodes_evaluated += 1
+
+        legal_actions = state.get_legal_actions(0)
+        best_action = None
+
+        if legal_actions:
+            best_value = float('-inf')
+
+            for action in legal_actions:
+                successor = state.generate_successor(0, action)
+                value = self._minimax_value(successor, self.depth - 1, 1)
+
+                if value > best_value:
+                    best_value = value
+                    best_action = action
+
+        return best_action
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """Agente Minimax que evita explorar ramas mediante poda alfa-beta."""
