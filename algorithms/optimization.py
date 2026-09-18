@@ -15,8 +15,8 @@ def configuration_score(
     - Use problem.score_components(configuration); ya retorna cobertura,
       redundancia y exposición en ese orden.
     """
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 1: implemente configuration_score")
+    cobertura, redundancia, exposicion = problem.score_components(configuration)
+    return cobertura - redundancia - exposicion
 
 
 def hill_climbing(
@@ -38,8 +38,45 @@ def hill_climbing(
     - Inicialice los historiales con la configuración inicial y agregue solo las
       mejoras aceptadas antes de retornar el OptimizationResult.
     """
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 1: implemente hill_climbing")
+    current_config = initial_configuration
+    current_score = configuration_score(problem, current_config)
+    evaluations = 1  # Evaluación de la configuración inicial
+    
+    history = [current_config]
+    iterations = 0
+    mejora_encontrada = True
+
+    while iterations < max_iterations and mejora_encontrada:
+        neighbors = problem.neighbors(current_config)
+        
+        if not neighbors:
+            mejora_encontrada = False
+        else:
+            best_neighbor = None
+            best_neighbor_score = float('-inf')
+
+            for neighbor in neighbors:
+                score = configuration_score(problem, neighbor)
+                evaluations += 1
+                if score > best_neighbor_score:
+                    best_neighbor_score = score
+                    best_neighbor = neighbor
+
+            if best_neighbor_score > current_score:
+                current_config = best_neighbor
+                current_score = best_neighbor_score
+                history.append(current_config)
+                iterations += 1
+            else:
+                mejora_encontrada = False
+
+    return OptimizationResult(
+        best_configuration=current_config,
+        best_score=current_score,
+        evaluations=evaluations,
+        iterations=iterations,
+        history=history,
+    )
 
 
 def cooling_schedule(initial_temperature: float, cooling_rate: float, iteration: int) -> float:
@@ -48,8 +85,7 @@ def cooling_schedule(initial_temperature: float, cooling_rate: float, iteration:
 
     Esta función se invoca desde simulated_annealing en cada iteración.
     """
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 2: implemente cooling_schedule")
+    return initial_temperature * (cooling_rate ** iteration)
 
 
 def simulated_annealing(
@@ -79,8 +115,50 @@ def simulated_annealing(
     rng = rng or random.Random()
     minimum_temperature = 1e-9
 
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 2: implemente simulated_annealing")
+
+    current_config = initial_configuration
+    current_score = configuration_score(problem, current_config)
+    
+    best_config = current_config
+    best_score = current_score
+
+    evaluations = 1  
+    history = [current_config]
+    iterations = 0
+
+    temperature = cooling_schedule(initial_temperature, cooling_rate, iterations)
+
+    while iterations < max_iterations and temperature > minimum_temperature:
+        neighbors = problem.neighbors(current_config)
+        
+        if neighbors:
+            # En este el vecino es aleatorio si no estoy mal
+            candidate = rng.choice(neighbors)
+            candidate_score = configuration_score(problem, candidate)
+            evaluations += 1
+
+            delta = candidate_score - current_score
+
+
+            if delta > 0 or rng.random() < math.exp(delta / temperature):
+                current_config = candidate
+                current_score = candidate_score
+
+                if current_score > best_score:
+                    best_config = current_config
+                    best_score = current_score
+
+        history.append(current_config)
+        iterations += 1
+        temperature = cooling_schedule(initial_temperature, cooling_rate, iterations)
+
+    return OptimizationResult(
+        best_configuration=best_config,
+        best_score=best_score,
+        evaluations=evaluations,
+        iterations=iterations,
+        history=history,
+    )
 
 
 def one_point_crossover(
