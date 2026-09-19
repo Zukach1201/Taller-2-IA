@@ -179,8 +179,13 @@ def one_point_crossover(
     if len(parent1) < 2:
         return parent1, parent2
 
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 3: implemente one_point_crossover")
+    # Aquí decidimos hacer el corte interior aleatorio, así garantizamos que ambos padres aporten material genetico
+    punto_de_corte = rng.randint(1, len(parent1) - 1)
+
+    # Cada hijo toma el prefijo de un padre y el sufijo del otro
+    primer_descendiente = parent1[:punto_de_corte] + parent2[punto_de_corte:]
+    segundo_descendiente = parent2[:punto_de_corte] + parent1[punto_de_corte:]
+    return primer_descendiente, segundo_descendiente
 
 
 def swap_mutation(
@@ -199,8 +204,25 @@ def swap_mutation(
     - Si alguno de los dos grupos está vacío, no hay un intercambio posible.
     - Retorne una tupla nueva; no modifique el individuo recibido.
     """
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 3: implemente swap_mutation")
+    # Esta es la mutacion, que solo ocurre con la probabilidad indicada por cromosoma
+    if rng.random() >= mutation_probability:
+        return tuple(individual)
+
+    indices_modulos_activos = [posicion for posicion, bit in enumerate(individual) if bit]
+    indices_modulos_inactivos = [posicion for posicion, bit in enumerate(individual) if not bit]
+
+    # Sin ambos grupos no existe intercambio posible y el cromosoma queda sin cambios
+    if not indices_modulos_activos or not indices_modulos_inactivos:
+        return tuple(individual)
+
+    posicion_a_apagar = rng.choice(indices_modulos_activos)
+    posicion_a_encender = rng.choice(indices_modulos_inactivos)
+
+    #Aquí intercambiamos un bit activo por uno inactivo. Lo que buscábamos era conservar la cantidad de módulos. 
+    cromosoma_mutado = list(individual)
+    cromosoma_mutado[posicion_a_apagar] = 0
+    cromosoma_mutado[posicion_a_encender] = 1
+    return tuple(cromosoma_mutado)
 
 
 def genetic_algorithm(
@@ -236,5 +258,76 @@ def genetic_algorithm(
     if not 0 <= elite_size <= population_size:
         raise ValueError("elite_size debe estar entre 0 y population_size")
 
-    # TODO: Add your code here
-    raise NotImplementedError("Punto 3: implemente genetic_algorithm")
+    poblacion_actual = problem.initial_population(population_size, rng)
+    puntajes_poblacion = [
+        configuration_score(problem, cromosoma) for cromosoma in poblacion_actual
+    ]
+    evaluaciones_totales = population_size
+
+    # El mejor global se guarda aparte para no perderlo si una generacion empeora
+    indice_mejor_inicial = max(
+        range(population_size), key=lambda posicion: puntajes_poblacion[posicion]
+    )
+    mejor_configuracion_global = poblacion_actual[indice_mejor_inicial]
+    mejor_puntaje_global = puntajes_poblacion[indice_mejor_inicial]
+
+    history = [mejor_configuracion_global]
+    score_history = [mejor_puntaje_global]
+    generaciones_ejecutadas = 0
+
+    for _ in range(generations):
+        # Aqui aplique Elitismo, que básicamente son los mejores individuos pasan intactos y encabezan la nueva poblacion
+        orden_por_aptitud = sorted(
+            range(len(poblacion_actual)),
+            key=lambda posicion: puntajes_poblacion[posicion],
+            reverse=True,
+        )
+        nueva_poblacion = [
+            poblacion_actual[posicion] for posicion in orden_por_aptitud[:elite_size]
+        ]
+
+        while len(nueva_poblacion) < population_size:
+            primer_padre = problem.tournament_select(
+                poblacion_actual, puntajes_poblacion, rng
+            )
+            segundo_padre = problem.tournament_select(
+                poblacion_actual, puntajes_poblacion, rng
+            )
+            descendientes = one_point_crossover(primer_padre, segundo_padre, rng)
+
+            # Este es el orden obligatorio por descendiente: primero reparar y luego mutar
+            for descendiente in descendientes:
+                if len(nueva_poblacion) >= population_size:
+                    break
+                descendiente_reparado = problem.repair_configuration(descendiente, rng)
+                nueva_poblacion.append(
+                    swap_mutation(descendiente_reparado, mutation_probability, rng)
+                )
+
+        # Acá es donde hacemos todo el reemplazo generacional completo, es decir, los hijos sustituyen a la poblacion anterior
+        poblacion_actual = nueva_poblacion
+        puntajes_poblacion = [
+            configuration_score(problem, cromosoma) for cromosoma in poblacion_actual
+        ]
+        evaluaciones_totales += population_size
+
+        indice_mejor_generacion = max(
+            range(len(poblacion_actual)),
+            key=lambda posicion: puntajes_poblacion[posicion],
+        )
+        if puntajes_poblacion[indice_mejor_generacion] > mejor_puntaje_global:
+            mejor_puntaje_global = puntajes_poblacion[indice_mejor_generacion]
+            mejor_configuracion_global = poblacion_actual[indice_mejor_generacion]
+
+        generaciones_ejecutadas += 1
+        history.append(mejor_configuracion_global)
+        score_history.append(mejor_puntaje_global)
+
+    return OptimizationResult(
+        best_configuration=mejor_configuracion_global,
+        best_score=mejor_puntaje_global,
+        evaluations=evaluaciones_totales,
+        iterations=generaciones_ejecutadas,
+        history=history,
+        score_history=score_history,
+    )
