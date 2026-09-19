@@ -103,6 +103,60 @@ class MinimaxAgent(MultiAgentSearchAgent):
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """Agente Minimax que evita explorar ramas mediante poda alfa-beta."""
 
+    #Misma estructura y casos base que MinimaxAgent, agregando las cotas alpha y beta.
+
+    def _alpha_beta_value(
+        self,
+        state: GameState,
+        depth: int,
+        agent_index: int,
+        alpha: float,
+        beta: float,
+    ) -> float:
+        """
+        Calcula el valor Minimax podando las ramas que no pueden cambiar la decision.
+        """
+        self.nodes_evaluated += 1
+
+        # Casos base identicos a Minimax: corte de profundidad, victoria o derrota
+        if depth == 0 or state.is_win() or state.is_lose():
+            return evaluation_function(state)
+
+        legal_actions = state.get_legal_actions(agent_index)
+        if not legal_actions:
+            return evaluation_function(state)
+
+        next_agent = (agent_index + 1) % state.get_num_agents()
+        next_depth = depth - 1
+
+        if agent_index == 0:  # MAX (Defensor)
+            max_val = float('-inf')
+            for action in legal_actions:
+                successor = state.generate_successor(agent_index, action)
+                val = self._alpha_beta_value(successor, next_depth, next_agent, alpha, beta)
+                if val > max_val:
+                    max_val = val
+
+                # Corte beta: MIN ya tiene una alternativa mejor y no entraria por aqui
+                if max_val >= beta:
+                    return max_val
+                alpha = max(alpha, max_val)
+            return max_val
+
+        # MIN (Intruso)
+        min_val = float('inf')
+        for action in legal_actions:
+            successor = state.generate_successor(agent_index, action)
+            val = self._alpha_beta_value(successor, next_depth, next_agent, alpha, beta)
+            if val < min_val:
+                min_val = val
+
+            # Corte alpha: MAX ya asegura un valor mayor y descartaria esta rama
+            if min_val <= alpha:
+                return min_val
+            beta = min(beta, min_val)
+        return min_val
+
     def get_action(self, state: GameState) -> str | None:
         """
         Retorna la acción de Minimax aplicando poda alfa-beta.
@@ -117,5 +171,31 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         - En MAX actualice alpha y corte si valor >= beta; en MIN actualice beta
           y corte si valor <= alpha.
         """
-        # TODO: Add your code here
-        raise NotImplementedError("Punto 5: implemente AlphaBetaAgent.get_action")
+        self.nodes_evaluated = 0
+
+        # La raiz se cuenta igual que en Minimax para comparar nodos con la misma definicion
+        self.nodes_evaluated += 1
+
+        legal_actions = state.get_legal_actions(0)
+        best_action = None
+
+        if legal_actions:
+            best_value = float('-inf')
+            alpha_raiz = float('-inf')
+            beta_raiz = float('inf')
+
+            for action in legal_actions:
+                successor = state.generate_successor(0, action)
+                value = self._alpha_beta_value(
+                    successor, self.depth - 1, 1, alpha_raiz, beta_raiz
+                )
+
+                # Comparacion estricta: ante empates se conserva la primera accion legal
+                if value > best_value:
+                    best_value = value
+                    best_action = action
+
+                # La mejor accion ya asegurada se convierte en la nueva cota alpha de la raiz
+                alpha_raiz = max(alpha_raiz, best_value)
+
+        return best_action

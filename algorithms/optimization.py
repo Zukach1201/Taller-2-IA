@@ -331,3 +331,4 @@ def genetic_algorithm(
         history=history,
         score_history=score_history,
     )
+
